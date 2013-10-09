@@ -18,6 +18,10 @@ command line):
  * AWS_ACCESS_KEY_ID
  * AWS_SECRET_ACCESS_KEY
  * AWS_QUEUE_NAME
+ * AWS_TOPIC_ARN (optional)
+
+If AWS_TOPIC_ARN is available, then the given topic will be notified of the
+restart event. The message body will be as in the sample below.
 
 ### AWS Setup
 

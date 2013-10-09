@@ -3,6 +3,7 @@
 AWS_ACCESS_KEY = ENV["AWS_ACCESS_KEY_ID"]
 AWS_SECRET_KEY = ENV["AWS_SECRET_ACCESS_KEY"]
 AWS_QUEUE_NAME = ENV["AWS_QUEUE_NAME"]
+AWS_TOPIC_NAME = ENV["AWS_TOPIC_ARN"]
 
 require "aws-sdk"
 require "multi_json"
@@ -12,13 +13,11 @@ def restart_instance(instance_id)
 
   inst = AWS::EC2.new.instances[instance_id]
   if !inst.exists? then
-    puts "   instance #{instance_id} doesn't exist!"
-    return
+    return false
   end
 
-  puts "   telling #{instance_id} to reboot"
   inst.reboot
-
+  return true
 end
 
 def find_instance_id(dimensions)
@@ -30,6 +29,18 @@ def find_instance_id(dimensions)
   nil
 end
 
+def send_alert(log)
+  return if AWS_TOPIC_NAME.nil? or AWS_TOPIC_NAME.empty?
+
+  topic = AWS::SNS.new.topics[AWS_TOPIC_NAME]
+  if topic.nil? then
+    STDERR.puts "topic '#{AWS_TOPIC_NAME}' doesn't exist!"
+    return
+  end
+
+  topic.publish(log, :subject => "[aws-sqs-restart] instance restarted")
+  puts "   sent notification to #{AWS_TOPIC_NAME}"
+end
 
 ################################################################################
 # validate config
@@ -60,20 +71,32 @@ puts "Listening on SQS queue '#{AWS_QUEUE_NAME}' for alarm events..."
 begin
   AWS::SQS.new.queues.named(AWS_QUEUE_NAME).poll do |msg|
 
-    puts "-> received alarm at #{Time.new.gmtime}"
+    log = []
+
+    log << "-> received alarm at #{Time.new.gmtime}"
     sns = msg.as_sns_message
-    puts "   alarm published at #{sns.published_at}"
+    log << "   alarm published at #{sns.published_at}"
 
     alarm = MultiJson.load(sns.body)
-    puts "   reason: " + alarm["NewStateReason"]
+    log << "   reason: " + alarm["NewStateReason"]
 
     instance_id = find_instance_id(alarm["Trigger"]["Dimensions"])
     if !instance_id.nil? then
-      restart_instance(instance_id)
+      if restart_instance(instance_id) then
+        log << "   told #{instance_id} to reboot"
+      else
+        log << "   instance #{instance_id} doesn't exist!"
+      end
 
     else
-      puts "   got alarm with no instance id:"
-      puts msg.body
+      log << "   got alarm with no instance id:"
+      log << msg.body
+    end
+
+    out = log.join("\n")
+    puts out
+    if AWS_TOPIC_NAME then
+      send_alert(out)
     end
 
     true
