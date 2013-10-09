@@ -19,6 +19,15 @@ command line):
  * AWS_SECRET_ACCESS_KEY
  * AWS_QUEUE_NAME
 
+### AWS Setup
+
+The following steps are required to setup a CloudWatch alarm to publish through
+to SQS:
+
+ * Create a new SQS queue
+ * Create a new SNS topic and [point it to SQS](http://docs.aws.amazon.com/sns/latest/dg/SendMessageToSQS.html)
+ * Create a new CloudWatch alarm and select the new SNS topic
+
 ### Run
 
 ```
