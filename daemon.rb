@@ -12,11 +12,11 @@ def restart_instance(instance_id)
 
   inst = AWS::EC2.new.instances[instance_id]
   if !inst.exists? then
-    warn "instance #{instance_id} doesn't exist!"
+    puts "   instance #{instance_id} doesn't exist!"
     return
   end
 
-  puts "telling #{instance_id} to reboot"
+  puts "   telling #{instance_id} to reboot"
   inst.reboot
 
 end
@@ -60,20 +60,20 @@ puts "Listening on SQS queue '#{AWS_QUEUE_NAME}' for alarm events..."
 begin
   AWS::SQS.new.queues.named(AWS_QUEUE_NAME).poll do |msg|
 
-    puts "received alarm at #{Time.new.gmtime}"
+    puts "-> received alarm at #{Time.new.gmtime}"
     sns = msg.as_sns_message
-    puts "alarm published at #{sns.published_at}"
+    puts "   alarm published at #{sns.published_at}"
 
     alarm = MultiJson.load(sns.body)
-    puts "reason: " + alarm["NewStateReason"]
+    puts "   reason: " + alarm["NewStateReason"]
 
     instance_id = find_instance_id(alarm["Trigger"]["Dimensions"])
     if !instance_id.nil? then
       restart_instance(instance_id)
 
     else
-      STDERR.puts "got alarm with no instance id:"
-      STDERR.puts msg.body
+      puts "   got alarm with no instance id:"
+      puts msg.body
     end
 
     true
